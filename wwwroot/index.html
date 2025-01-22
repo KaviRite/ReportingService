@@ -1,0 +1,153 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporting Service UI</title>
+    <!-- Add Bootstrap CSS from CDN -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center">Welcome to the Reporting Service</h1>
+        <p class="text-center">Explore the available reports:</p>
+
+        <!-- Users Summary Button -->
+        <button id="users-summary-btn" class="btn btn-primary btn-block mb-4">Users Summary</button>
+
+        <!-- Top Products Button -->
+        <button id="top-products-btn" class="btn btn-primary btn-block mb-4">Top Products</button>
+
+        <!-- Date Range for CSV Report -->
+        <div class="form-group">
+            <label for="start-date">Start Date:</label>
+            <input type="date" id="start-date" class="form-control">
+        </div>
+        <div class="form-group">
+            <label for="end-date">End Date:</label>
+            <input type="date" id="end-date" class="form-control">
+        </div>
+        <button id="export-csv-btn" class="btn btn-success btn-block mt-4">Export Orders Report as CSV</button>
+
+        <!-- Table for Users Summary -->
+        <div id="users-summary-table" class="mt-5">
+            <h3>Users Summary</h3>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>UserId</th>
+                        <th>UserName</th>
+                        <th>Contact</th>
+                        <th>Email</th>
+                        <th>Gender</th>
+                        <th>DOB</th>
+                        <th>Address</th>
+                    </tr>
+                </thead>
+                <tbody id="users-summary-body">
+                    <!-- Data will be populated here dynamically -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Table for Top Products -->
+        <div id="top-products-table" class="mt-5">
+            <h3>Top Products</h3>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>ProductId</th>
+                        <th>Description</th>
+                        <th>Price</th>
+                        <th>InStock</th>
+                        <th>OrdersReceived</th>
+                    </tr>
+                </thead>
+                <tbody id="top-products-body">
+                    <!-- Data will be populated here dynamically -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Add Bootstrap JS and jQuery from CDN -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Event listener for fetching Users Summary
+        document.getElementById('users-summary-btn').addEventListener('click', function () {
+            fetch('/api/users-summary')
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.getElementById('users-summary-body');
+                    tbody.innerHTML = ''; // Clear previous data
+
+                    data.forEach(user => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                                <td>${user.userId}</td>
+                                <td>${user.userName}</td>
+                                <td>${user.contact}</td>
+                                <td>${user.email}</td>
+                                <td>${user.gender}</td>
+                                <td>${user.dob}</td>
+                                <td>
+                                 Shipping: ${user.address?.shippingAddress || 'N/A'}<br>
+                                Billing: ${user.address?.billingAddress || 'N/A'}<br>
+                                City: ${user.address?.city || 'N/A'}<br>
+                                State: ${user.address?.state || 'N/A'}
+                                </td>
+                            `;
+                        tbody.appendChild(row);
+                    });
+                    document.getElementById('users-summary-table').style.display = 'block';
+                    document.getElementById('top-products-table').style.display = 'block';
+                });
+        });
+
+        // Event listener for fetching Top Products
+        document.getElementById('top-products-btn').addEventListener('click', function () {
+            fetch('/api/top-products')
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.getElementById('top-products-body');
+                    tbody.innerHTML = ''; // Clear previous data
+
+                    data.forEach(product => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                                <td>${product.productId}</td>
+                                <td>${product.description}</td>
+                                <td>${product.price}</td>
+                                <td>${product.inStock}</td>
+                                <td>${product.ordersReceived}</td>
+                            `;
+                        tbody.appendChild(row);
+                    });
+                    document.getElementById('top-products-table').style.display = 'block';
+                    document.getElementById('users-summary-table').style.display = 'block';
+                });
+        });
+
+        // Event listener for exporting CSV report with date range
+        document.getElementById('export-csv-btn').addEventListener('click', function () {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+
+            // Construct the URL with date range as query parameters
+            let url = `/api/export-csv?startDate=${startDate}&endDate=${endDate}`;
+
+            // Trigger the CSV download
+            fetch(url)
+                .then(response => response.blob())
+                .then(blob => {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'report.csv';
+                    link.click();
+                });
+        });
+    </script>
+</body>
+</html>
