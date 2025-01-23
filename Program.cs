@@ -6,6 +6,7 @@ using NLog.Web;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Globalization;
 
 var nLogger = NLog.LogManager.GetCurrentClassLogger();
 
@@ -20,6 +21,22 @@ try
         options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
+
+    //JWT Authentication
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
+    {
+        options.RequireHttpsMetadata = false;
+        options.SaveToken = true;
+        options.TokenValidationParameters = new TokenValidationParameters()
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+        };
+    });
+    builder.Services.AddControllers();
 
     // Enable static file serving (HTML, CSS, JS files in wwwroot)
     var app = builder.Build();
@@ -106,7 +123,9 @@ try
             }
 
             var csvBytes = System.Text.Encoding.UTF8.GetBytes(csvBuilder.ToString());
-            return Results.File(csvBytes, "text/csv", "report.csv");
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+            var fileName = $"log_{timestamp}.csv";
+            return Results.File(csvBytes, "text/csv", fileName);
         }
         catch (Exception ex)
         {
@@ -119,6 +138,11 @@ try
 
     // Serve index.html as the default page when accessing the root URL
     app.MapFallbackToFile("index.html"); // Serves index.html in wwwroot as fallback
+
+    app.UseHttpsRedirection();
+    app.UseAuthentication();
+    app.UseAuthorization();
+    app.MapControllers();
 
     app.Run();
 } catch (Exception e)

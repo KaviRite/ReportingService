@@ -10,7 +10,7 @@ using NLog.Web;
 
 namespace ReportingService.Controllers
 {
-    //[Authorize]
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class ReportingController : ControllerBase
@@ -89,7 +89,9 @@ namespace ReportingService.Controllers
                 }
 
                 var csvBytes = Encoding.UTF8.GetBytes(csvBuilder.ToString());
-                return File(csvBytes, "text/csv", "report.csv");
+                var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+                var fileName = $"log_{timestamp}.csv";
+                return File(csvBytes, "text/csv", fileName);
             }catch (Exception ex) 
             {
                NLog.LogManager.GetCurrentClassLogger().Error(ex, "Error exporting csv report");

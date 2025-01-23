@@ -19,15 +19,17 @@
         <button id="top-products-btn" class="btn btn-primary btn-block mb-4">Top Products</button>
 
         <!-- Date Range for CSV Report -->
-        <div class="form-group">
+        <div class="form-group" style="display: flex;">
+            <div style="margin-right: 20px;">
             <label for="start-date">Start Date:</label>
             <input type="date" id="start-date" class="form-control">
         </div>
-        <div class="form-group">
+            <div style="margin-right: 20px;">
             <label for="end-date">End Date:</label>
             <input type="date" id="end-date" class="form-control">
         </div>
-        <button id="export-csv-btn" class="btn btn-success btn-block mt-4">Export Orders Report as CSV</button>
+        </div>
+        <button id="export-csv-btn" class="btn btn-success btn-block mt-4">Export Report as CSV</button>
 
         <!-- Table for Users Summary -->
         <div id="users-summary-table" class="mt-5">
@@ -126,7 +128,7 @@
                         tbody.appendChild(row);
                     });
                     document.getElementById('top-products-table').style.display = 'block';
-                    document.getElementById('users-summary-table').style.display = 'block';
+                    document.getElementById('users-summary-table').style.display = 'none';
                 });
         });
 
@@ -138,13 +140,15 @@
             // Construct the URL with date range as query parameters
             let url = `/api/export-csv?startDate=${startDate}&endDate=${endDate}`;
 
+            const currDate = new Date();
+
             // Trigger the CSV download
             fetch(url)
                 .then(response => response.blob())
                 .then(blob => {
                     const link = document.createElement('a');
                     link.href = URL.createObjectURL(blob);
-                    link.download = 'report.csv';
+                    link.download = `report${currDate}.csv`;
                     link.click();
                 });
         });
