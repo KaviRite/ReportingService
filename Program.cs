@@ -3,6 +3,9 @@ using ReportingService.Data;
 
 using NLog;
 using NLog.Web;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var nLogger = NLog.LogManager.GetCurrentClassLogger();
 
@@ -10,6 +13,7 @@ try
 {
     nLogger.Debug("Initializing Application..");
     var builder = WebApplication.CreateBuilder(args);
+   
 
     // Add services to the container.
     builder.Services.AddDbContext<ReportingDbContext>(options =>
@@ -31,6 +35,8 @@ try
     }
 
     app.UseHttpsRedirection();
+    //app.UseAuthentication();
+    //app.UseAuthorization();
 
     // API to fetch the summary of users.
     app.MapGet("/api/users-summary", async (ReportingDbContext context) =>

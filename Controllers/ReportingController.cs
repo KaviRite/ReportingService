@@ -10,6 +10,7 @@ using NLog.Web;
 
 namespace ReportingService.Controllers
 {
+    //[Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class ReportingController : ControllerBase
