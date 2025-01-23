@@ -90,7 +90,7 @@ namespace ReportingService.Controllers
 
                 var csvBytes = Encoding.UTF8.GetBytes(csvBuilder.ToString());
                 var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-                var fileName = $"log_{timestamp}.csv";
+                var fileName = $"Order_Report_{timestamp}.csv";
                 return File(csvBytes, "text/csv", fileName);
             }catch (Exception ex) 
             {
