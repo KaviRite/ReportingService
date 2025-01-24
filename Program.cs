@@ -8,7 +8,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Globalization;
 
-var nLogger = NLog.LogManager.GetCurrentClassLogger();
+//var nLogger = NLog.LogManager.GetCurrentClassLogger();
+var nLogger = NLogBuilder.ConfigureNLog("nlog.config").GetCurrentClassLogger();
 
 try
 {
@@ -22,20 +23,51 @@ try
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
 
-    //JWT Authentication
-    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
     {
         options.RequireHttpsMetadata = false;
         options.SaveToken = true;
-        options.TokenValidationParameters = new TokenValidationParameters()
+        options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
             ValidAudience = builder.Configuration["Jwt:Audience"],
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
         };
+
+        // Adding event handlers for debugging and customization
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                Console.WriteLine($"Authentication failed: {context.Exception.Message}");
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                Console.WriteLine($"Token validated successfully for user: {context.Principal.Identity.Name}");
+                return Task.CompletedTask;
+            },
+            OnChallenge = context =>
+            {
+                Console.WriteLine("Authorization challenge occurred.");
+                return Task.CompletedTask;
+            }
+        };
     });
+
+    builder.Services.AddAuthorization(options =>
+    {
+        options.AddPolicy("JwtPolicy", policy =>
+        {
+            policy.RequireAuthenticatedUser();
+        });
+    });
+
     builder.Services.AddControllers();
 
     // Enable static file serving (HTML, CSS, JS files in wwwroot)
@@ -51,7 +83,7 @@ try
         app.UseSwaggerUI();
     }
 
-    app.UseHttpsRedirection();
+    //app.UseHttpsRedirection();
     //app.UseAuthentication();
     //app.UseAuthorization();
 
@@ -63,6 +95,7 @@ try
             var users = await context.Users
             .Include(u => u.Address)
             .ToListAsync();
+            nLogger.Trace("Called API to fetch user summary.");
             return Results.Ok(users);
         }
         catch (Exception ex)
