@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Text;
 using NLog;
 using NLog.Web;
+using Azure.Messaging;
 
 namespace ReportingService.Controllers
 {
@@ -48,11 +49,13 @@ namespace ReportingService.Controllers
                 var products = await _context.Products
                     .OrderByDescending(p => p.OrdersReceived)
                     .ToListAsync();
-                return Ok(products);
+                //return Ok(products);
+                return StatusCode(0, products);
             } catch (Exception ex) 
             {
                NLog.LogManager.GetCurrentClassLogger().Error(ex, "Error fetching top products");
-                return Problem("An Error occurred while fetching top products");
+                //return Problem("An Error occurred while fetching top products");
+                return StatusCode(1, new {message = "An Error occurred while fetching top products" });
     }
 }
 
