@@ -21,7 +21,43 @@ try
     builder.Services.AddDbContext<ReportingDbContext>(options =>
         options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
     builder.Services.AddEndpointsApiExplorer();
-    builder.Services.AddSwaggerGen();
+
+    builder.Services.AddSwaggerGen(c =>
+    {
+        c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+        {
+            Title = "Reporting Service API",
+            Version = "v1",
+            Description = "API Documentation for Reporting Service"
+        });
+
+        // Add JWT Authentication to Swagger
+        c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+        {
+            Name = "Authorization",
+            Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+            Scheme = "Bearer",
+            BearerFormat = "JWT",
+            In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+            Description = "Enter 'Bearer' [space] and then your valid JWT token."
+        });
+
+        c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
+    });
+    });
+
 
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -82,10 +118,6 @@ try
         app.UseSwagger();
         app.UseSwaggerUI();
     }
-
-    //app.UseHttpsRedirection();
-    //app.UseAuthentication();
-    //app.UseAuthorization();
 
     // API to fetch the summary of users.
     app.MapGet("/api/users-summary", async (ReportingDbContext context) =>
@@ -167,7 +199,6 @@ try
         }
     })
     .WithName("ExportCsvReport");
-
 
     // Serve index.html as the default page when accessing the root URL
     app.MapFallbackToFile("index.html"); // Serves index.html in wwwroot as fallback
