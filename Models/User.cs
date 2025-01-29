@@ -1,4 +1,6 @@
-﻿namespace ReportingService.Models
+﻿using System.Text.Json.Serialization;
+
+namespace ReportingService.Models
 {
     public class User
     {
@@ -12,6 +14,7 @@
         public Address Address { get; set; }
 
         // Navigation Property
+        [JsonIgnore] //Avoid Serialization Cycle
         public ICollection<Order> Orders { get; set; }
     }
 }

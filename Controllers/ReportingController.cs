@@ -1,13 +1,9 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using ReportingService.Data;
-using ReportingService.Models;
-using System.Globalization;
-using System.Text;
+using System.Threading.Tasks;
+using ReportingService.Services;
+using System;
 using NLog;
-using NLog.Web;
-using Azure.Messaging;
 
 namespace ReportingService.Controllers
 {
@@ -16,11 +12,11 @@ namespace ReportingService.Controllers
     [Route("api/[controller]")]
     public class ReportingController : ControllerBase
     {
-        private readonly ReportingDbContext _context;
+        private readonly IReportingService _reportingService;
 
-        public ReportingController(ReportingDbContext context)
+        public ReportingController(IReportingService reportingService)
         {
-            _context = context;
+            _reportingService = reportingService;
         }
 
         [HttpGet("user-summary")]
@@ -28,79 +24,45 @@ namespace ReportingService.Controllers
         {
             try
             {
-                var users = await _context.Users
-                    .Include(u => u.Address) // Ensure Address is included
-                    .ToListAsync();
-
+                var users = await _reportingService.GetUserSummaryAsync();
                 return Ok(users);
-            } catch (Exception ex) 
+            }
+            catch (Exception ex)
             {
-               NLog.LogManager.GetCurrentClassLogger().Error(ex, "Error fetching user summary");
+                NLog.LogManager.GetCurrentClassLogger().Error(ex, "Error fetching user summary");
                 return Problem("An Error occurred while fetching user summary");
             }
         }
-
 
         [HttpGet("top-products")]
         public async Task<IActionResult> GetTopProducts()
         {
             try
             {
-                var products = await _context.Products
-                    .OrderByDescending(p => p.OrdersReceived)
-                    .ToListAsync();
-                //return Ok(products);
-                return StatusCode(0, products);
-            } catch (Exception ex) 
+                var products = await _reportingService.GetTopProductsAsync();
+                return Ok(products);
+            }
+            catch (Exception ex)
             {
-               NLog.LogManager.GetCurrentClassLogger().Error(ex, "Error fetching top products");
-                //return Problem("An Error occurred while fetching top products");
-                return StatusCode(1, new {message = "An Error occurred while fetching top products" });
-    }
-}
+                NLog.LogManager.GetCurrentClassLogger().Error(ex, "Error fetching top products");
+                return Problem("An Error occurred while fetching top products");
+            }
+        }
 
         [HttpGet("export-csv")]
         public async Task<IActionResult> ExportReportAsCsv([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
         {
             try
             {
-                var ordersQuery = _context.Orders
-                    .Include(o => o.User)
-                    .Include(o => o.Product)
-                    .Include(o => o.User.Address)
-                    .AsQueryable();
-
-                // Apply date range filter if provided
-                if (startDate.HasValue)
-                {
-                    ordersQuery = ordersQuery.Where(o => o.PurchaseDate >= startDate.Value);
-                }
-
-                if (endDate.HasValue)
-                {
-                    ordersQuery = ordersQuery.Where(o => o.PurchaseDate <= endDate.Value);
-                }
-
-                var orders = await ordersQuery.ToListAsync();
-
-                var csvBuilder = new StringBuilder();
-                csvBuilder.AppendLine("OrderId,UserId,UserName,ProductId,ProductDescription,Price,QuantityOrdered,PurchaseDate,Region");
-
-                foreach (var order in orders)
-                {
-                    csvBuilder.AppendLine($"{order.OrderId},{order.User.UserId},{order.User.UserName},{order.Product.ProductId},{order.Product.Description},{order.Product.Price},{order.QtyOrdered},{order.PurchaseDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)},{order.User.Address.City}");
-                }
-
-                var csvBytes = Encoding.UTF8.GetBytes(csvBuilder.ToString());
-                var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-                var fileName = $"Order_Report_{timestamp}.csv";
-                return File(csvBytes, "text/csv", fileName);
-            }catch (Exception ex) 
+                var fileResult = await _reportingService.ExportOrdersAsCsvAsync(startDate, endDate);
+                return File(fileResult.Content, fileResult.ContentType, fileResult.FileName);
+            }
+            catch (Exception ex)
             {
-               NLog.LogManager.GetCurrentClassLogger().Error(ex, "Error exporting csv report");
-                return Problem("An Error occurred while exporting csv report");
-    }
-}
+                NLog.LogManager.GetCurrentClassLogger().Error(ex, "Error exporting CSV report");
+                return Problem("An Error occurred while exporting CSV report");
+            }
+        }
 
     }
 }
