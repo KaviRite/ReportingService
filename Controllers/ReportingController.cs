@@ -27,10 +27,14 @@ namespace ReportingService.Controllers
                 var users = await _reportingService.GetUserSummaryAsync();
                 return Ok(users);
             }
+            catch (UnauthorizedAccessException) // Handle unauthorized access
+            {
+                return Unauthorized(new { message = "Invalid or expired token" });
+            }
             catch (Exception ex)
             {
                 NLog.LogManager.GetCurrentClassLogger().Error(ex, "Error fetching user summary");
-                return Problem("An Error occurred while fetching user summary");
+                return StatusCode(500, new { message = "An error occurred while fetching user summary" });
             }
         }
 
@@ -45,7 +49,7 @@ namespace ReportingService.Controllers
             catch (Exception ex)
             {
                 NLog.LogManager.GetCurrentClassLogger().Error(ex, "Error fetching top products");
-                return Problem("An Error occurred while fetching top products");
+                return StatusCode(500, new { message = "An error occurred while fetching top products" });
             }
         }
 
@@ -54,15 +58,24 @@ namespace ReportingService.Controllers
         {
             try
             {
+                // Validate date range
+                if (startDate.HasValue && endDate.HasValue && startDate > endDate)
+                {
+                    return BadRequest(new { message = "Start date cannot be greater than end date" });
+                }
                 var fileResult = await _reportingService.ExportOrdersAsCsvAsync(startDate, endDate);
                 return File(fileResult.Content, fileResult.ContentType, fileResult.FileName);
+            }
+            catch (ArgumentException ex)
+            {
+                NLog.LogManager.GetCurrentClassLogger().Error(ex, "Invalid input parameters for CSV export");
+                return BadRequest(new { message = "Invalid input parameters for CSV export" });
             }
             catch (Exception ex)
             {
                 NLog.LogManager.GetCurrentClassLogger().Error(ex, "Error exporting CSV report");
-                return Problem("An Error occurred while exporting CSV report");
+                return StatusCode(500, new { message = "An error occurred while exporting CSV report" });
             }
         }
-
     }
 }

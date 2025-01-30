@@ -132,12 +132,18 @@ try
         {
             var users = await reportingService.GetUserSummaryAsync();
             nLogger.Trace("Called API to fetch user summary.");
-            return Results.Ok(users);
+            return Results.Ok(users); // 200 OK
+        }
+        catch (UnauthorizedAccessException) // Handle unauthorized access
+        {
+            return Results.Json(new { message = "Unauthorized access. Invalid or expired token." },
+                                statusCode: 401);
         }
         catch (Exception ex)
         {
-            nLogger.Error(ex, "Error fetching user Summary");
-            return Results.Problem("An error occurred while fetching user summary.");
+            nLogger.Error(ex, "Error fetching user summary");
+            return Results.Json(new { message = "An error occurred while fetching user summary." },
+                                statusCode: 500);
         }
     })
     .WithName("GetUsersSummary");
@@ -154,7 +160,8 @@ try
         catch (Exception ex)
         {
             nLogger.Error(ex, "Error fetching top products");
-            return Results.Problem("An error occurred while fetching top products.");
+            return Results.Json(new { message = "An error occurred while fetching top products." },
+                statusCode: 500);
         }
     })
     .WithName("GetTopProducts");
@@ -175,7 +182,8 @@ try
         catch (Exception ex)
         {
             nLogger.Error(ex, "Error exporting csv report");
-            return Results.Problem("An Error occurred while exporting csv report");
+            return Results.Json(new { message = "An Error occurred while exporting csv report." },
+                statusCode: 500);
         }
     })
     .WithName("ExportCsvReport");

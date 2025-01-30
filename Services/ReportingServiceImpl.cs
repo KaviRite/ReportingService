@@ -22,17 +22,39 @@ namespace ReportingService.Services
 
         public async Task<List<User>> GetUserSummaryAsync()
         {
-            return await _context.Users
-                .Include(u => u.Address) // Ensure Address is included
-                .Include(u => u.Orders)
-                .ToListAsync();
+            try
+            {
+                return await _context.Users
+                    .Include(u => u.Address) // Ensure Address is included
+                    .Include(u => u.Orders)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                // Log the error
+                NLog.LogManager.GetCurrentClassLogger().Error(ex, "Error fetching user summary");
+
+                // Return an empty list instead of failing
+                return new List<User>();
+            }
         }
 
         public async Task<List<Product>> GetTopProductsAsync()
         {
-            return await _context.Products
-                .OrderByDescending(p => p.OrdersReceived)
-                .ToListAsync();
+            try
+            {
+                return await _context.Products
+                    .OrderByDescending(p => p.OrdersReceived)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                // Log the error
+                NLog.LogManager.GetCurrentClassLogger().Error(ex, "Error fetching top products");
+
+                // Return an empty list instead of failing
+                return new List<Product>();
+            }
         }
 
         public async Task<List<Order>> GetOrdersAsync(DateTime? startDate, DateTime? endDate)
