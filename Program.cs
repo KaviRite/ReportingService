@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Globalization;
+using System.Net;
 
 var nLogger = NLogBuilder.ConfigureNLog("nlog.config").GetCurrentClassLogger();
 
@@ -14,6 +15,13 @@ try
 {
     nLogger.Debug("Initializing Application..");
     var builder = WebApplication.CreateBuilder(args);
+
+    builder.WebHost.ConfigureKestrel(serverOptions =>
+    {
+        // Configure HTTP port
+        serverOptions.Listen(IPAddress.Any, 5294); // HTTP port 5294
+    });
+
 
     // Add services to the container.
     builder.Services.AddDbContext<ReportingDbContext>(options =>
@@ -115,12 +123,9 @@ try
     // Enable static file serving (HTML, CSS, JS files in wwwroot)
     var app = builder.Build();
 
-    // Configure the HTTP request pipeline.
-    if (app.Environment.IsDevelopment())
-    {
+    //// Configure the HTTP request pipeline.
         app.UseSwagger();
-        app.UseSwaggerUI();
-    }
+    app.UseSwaggerUI();
 
     // Serve static files (like HTML, CSS, and JS)
     app.UseStaticFiles(); // Serves files from wwwroot folder
@@ -189,7 +194,10 @@ try
     .WithName("ExportCsvReport");
     // Serve index.html as the default page when accessing the root URL
     app.MapFallbackToFile("index.html"); // Serves index.html in wwwroot as fallback
-    app.UseHttpsRedirection();
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHttpsRedirection(); // This should be removed if you're not using HTTPS
+    }
     app.UseAuthentication();
     app.UseAuthorization();
 
