@@ -31,8 +31,8 @@ jobs:
       - name: Tag Docker Image
         run: |
           IMAGE_TAG=$(git rev-parse --short HEAD)
-          docker tag mywebapi:latest ${{ secrets.REPOSITORY }}:$IMAGE_TAG
-          docker tag mywebapi:latest ${{ secrets.REPOSITORY }}:latest
+          docker tag reporting-service-api:latest ${{ secrets.REPOSITORY }}:$IMAGE_TAG
+          docker tag reporting-service-api:latest ${{ secrets.REPOSITORY }}:latest
 
       - name: Push Docker Image to ECR
         run: |
