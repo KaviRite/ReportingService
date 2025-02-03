@@ -17,8 +17,8 @@ jobs:
         with:
           dotnet-version: 9.x
       - name: 📦 Restore Dependencies
-        run: dotnet restore ./ReportingService/ReportingService.csproj
+        run: dotnet restore ./ReportingService.csproj
       - name: 🏗️ Build Project
-        run: dotnet build ./ReportingService/ReportingService.csproj --no-restore
+        run: dotnet build ./ReportingService.csproj --no-restore
       - name: ✅ Run Tests
-        run: dotnet test ./ReportingService/ReportingService.csproj --no-build --verbosity normal
+        run: dotnet test ./ReportingService.csproj --no-build --verbosity normal
