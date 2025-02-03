@@ -1,85 +1,216 @@
 using Microsoft.EntityFrameworkCore;
 using ReportingService.Data;
+using ReportingService.Services;
+using NLog;
+using NLog.Web;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using System.Globalization;
+using System.Net;
 
-var builder = WebApplication.CreateBuilder(args);
+var nLogger = NLogBuilder.ConfigureNLog("nlog.config").GetCurrentClassLogger();
 
-// Add services to the container.
-builder.Services.AddDbContext<ReportingDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
-// Enable static file serving (HTML, CSS, JS files in wwwroot)
-var app = builder.Build();
-
-// Serve static files (like HTML, CSS, and JS)
-app.UseStaticFiles(); // Serves files from wwwroot folder
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+try
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    nLogger.Debug("Initializing Application..");
+    var builder = WebApplication.CreateBuilder(args);
 
-app.UseHttpsRedirection();
-
-// API to fetch the summary of users.
-app.MapGet("/api/users-summary", async (ReportingDbContext context) =>
-{
-    var users = await context.Users
-    .Include(u => u.Address)
-    .ToListAsync();
-    return Results.Ok(users);
-})
-.WithName("GetUsersSummary");
-
-// API to fetch the list of top products by the number of orders received.
-app.MapGet("/api/top-products", async (ReportingDbContext context) =>
-{
-    var products = await context.Products
-        .OrderByDescending(p => p.OrdersReceived)
-        .ToListAsync();
-    return Results.Ok(products);
-})
-.WithName("GetTopProducts");
-
-// API to export the orders report as a CSV file.
-app.MapGet("/api/export-csv", async (ReportingDbContext context, string startDate, string endDate) =>
-{
-    // Parse the dates from query parameters
-    DateTime? start = string.IsNullOrEmpty(startDate) ? null : DateTime.Parse(startDate);
-    DateTime? end = string.IsNullOrEmpty(endDate) ? null : DateTime.Parse(endDate);
-
-    var ordersQuery = context.Orders
-        .Include(o => o.User)
-        .Include(o => o.User.Address)
-        .Include(o => o.Product)
-        .AsQueryable();
-
-    if (start.HasValue)
-        ordersQuery = ordersQuery.Where(o => o.PurchaseDate >= start.Value);
-
-    if (end.HasValue)
-        ordersQuery = ordersQuery.Where(o => o.PurchaseDate <= end.Value);
-
-    var orders = await ordersQuery.ToListAsync();
-
-    var csvBuilder = new System.Text.StringBuilder();
-    csvBuilder.AppendLine("OrderId,UserId,UserName,ProductId,ProductDescription,ProductPrice,ProductQuantity,PurchaseDate,Region");
-
-    foreach (var order in orders)
+    builder.WebHost.ConfigureKestrel(serverOptions =>
     {
-        csvBuilder.AppendLine($"{order.OrderId},{order.User.UserId},{order.User.UserName},{order.Product.ProductId},{order.Product.Description},{order.Product.Price},{order.QtyOrdered},{order.PurchaseDate:yyyy-MM-dd},{order.User.Address.City}");
+        // Configure HTTP port
+        serverOptions.Listen(IPAddress.Any, 5294); // HTTP port 5294
+    });
+
+
+    // Add services to the container.
+    builder.Services.AddDbContext<ReportingDbContext>(options =>
+        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+    // Register ReportingService and IReportingService
+    builder.Services.AddScoped<IReportingService, ReportingServiceImpl>();
+
+    builder.Services.AddEndpointsApiExplorer();
+
+    builder.Services.AddSwaggerGen(c =>
+    {
+        c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+        {
+            Title = "Reporting Service API",
+            Version = "v1",
+            Description = "API Documentation for Reporting Service"
+        });
+
+        // Add JWT Authentication to Swagger
+        c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+        {
+            Name = "Authorization",
+            Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+            Scheme = "Bearer",
+            BearerFormat = "JWT",
+            In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+            Description = "Enter 'Bearer' [space] and then your valid JWT token."
+        });
+
+        c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+        {
+            {
+                new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+                {
+                    Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                    {
+                        Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                        Id = "Bearer"
+                    }
+                },
+                new string[] {}
+            }
+        });
+    });
+
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.RequireHttpsMetadata = false;
+            options.SaveToken = true;
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidAudience = builder.Configuration["Jwt:Audience"],
+                ValidIssuer = builder.Configuration["Jwt:Issuer"],
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+            };
+
+            // Adding event handlers for debugging and customization
+            options.Events = new JwtBearerEvents
+            {
+                OnAuthenticationFailed = context =>
+                {
+                    Console.WriteLine($"Authentication failed: {context.Exception.Message}");
+                    return Task.CompletedTask;
+                },
+                OnTokenValidated = context =>
+                {
+                    Console.WriteLine($"Token validated successfully for user: {context.Principal.Identity.Name}");
+                    return Task.CompletedTask;
+                },
+                OnChallenge = context =>
+                {
+                    Console.WriteLine("Authorization challenge occurred.");
+                    return Task.CompletedTask;
+                }
+            };
+        });
+
+    builder.Services.AddAuthorization(options =>
+    {
+        options.AddPolicy("JwtPolicy", policy =>
+        {
+            policy.RequireAuthenticatedUser();
+        });
+    });
+
+    builder.Services.AddControllers()
+        .AddJsonOptions(options =>
+        {
+            // This will help prevent circular reference issues when serializing objects
+            options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.Preserve;
+        });
+
+    // Enable static file serving (HTML, CSS, JS files in wwwroot)
+    var app = builder.Build();
+
+    //// Configure the HTTP request pipeline.
+        app.UseSwagger();
+    app.UseSwaggerUI();
+
+    // Serve static files (like HTML, CSS, and JS)
+    app.UseStaticFiles(); // Serves files from wwwroot folder
+
+    // API to fetch the summary of users.
+    app.MapGet("/api/users-summary", async (IReportingService reportingService) =>
+    {
+        try
+        {
+            var users = await reportingService.GetUserSummaryAsync();
+            nLogger.Trace("Called API to fetch user summary.");
+            return Results.Ok(users); // 200 OK
+        }
+        catch (UnauthorizedAccessException) // Handle unauthorized access
+        {
+            return Results.Json(new { message = "Unauthorized access. Invalid or expired token." },
+                                statusCode: 401);
+        }
+        catch (Exception ex)
+        {
+            nLogger.Error(ex, "Error fetching user summary");
+            return Results.Json(new { message = "An error occurred while fetching user summary." },
+                                statusCode: 500);
+        }
+    })
+    .WithName("GetUsersSummary");
+
+    // API to fetch the list of top products by the number of orders received.
+    app.MapGet("/api/top-products", async (IReportingService reportingService) =>
+    {
+        try
+        {
+            var products = await reportingService.GetTopProductsAsync();
+            nLogger.Trace("Called API to fetch top products.");
+            return Results.Ok(products);
+        }
+        catch (Exception ex)
+        {
+            nLogger.Error(ex, "Error fetching top products");
+            return Results.Json(new { message = "An error occurred while fetching top products." },
+                statusCode: 500);
+        }
+    })
+    .WithName("GetTopProducts");
+
+    // API to export the orders report as a CSV file.
+    app.MapGet("/api/export-csv", async (IReportingService reportingService, string? startDate, string? endDate) =>
+    {
+        try
+        {
+            // Parse the dates from query parameters
+            DateTime? start = string.IsNullOrEmpty(startDate) ? null : DateTime.Parse(startDate);
+            DateTime? end = string.IsNullOrEmpty(endDate) ? null : DateTime.Parse(endDate);
+
+            var fileResult = await reportingService.ExportOrdersAsCsvAsync(start, end);
+            nLogger.Trace("Called API to export report.");
+            return Results.File(fileResult.Content, fileResult.ContentType, fileResult.FileName);
+        }
+        catch (Exception ex)
+        {
+            nLogger.Error(ex, "Error exporting csv report");
+            return Results.Json(new { message = "An Error occurred while exporting csv report." },
+                statusCode: 500);
+        }
+    })
+    .WithName("ExportCsvReport");
+    // Serve index.html as the default page when accessing the root URL
+    app.MapFallbackToFile("index.html"); // Serves index.html in wwwroot as fallback
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHttpsRedirection(); // This should be removed if you're not using HTTPS
     }
+    app.UseAuthentication();
+    app.UseAuthorization();
 
-    var csvBytes = System.Text.Encoding.UTF8.GetBytes(csvBuilder.ToString());
-    return Results.File(csvBytes, "text/csv", "report.csv");
-})
-.WithName("ExportCsvReport");
+    app.MapControllers();
 
-
-// Serve index.html as the default page when accessing the root URL
-app.MapFallbackToFile("index.html"); // Serves index.html in wwwroot as fallback
-
-app.Run();
+    app.Run();
+}
+catch (Exception e)
+{
+    nLogger.Fatal(e, "Application Startup Failed");
+    throw;
+}
+finally
+{
+    LogManager.Shutdown();
+}
