@@ -34,7 +34,7 @@ namespace ReportingService.Controllers
             catch (Exception ex)
             {
                 NLog.LogManager.GetCurrentClassLogger().Error(ex, "Error fetching user summary");
-                return StatusCode(500, new { message = "An error occurred while fetching user summary" });
+                return StatusCode(500, new { message = "An error occurred while fetching user summary.." });
             }
         }
 
