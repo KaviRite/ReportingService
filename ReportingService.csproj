@@ -9,6 +9,9 @@
 	  <UserSecretsId>cfcd2d1a-5b95-4e3d-846c-79327d78da70</UserSecretsId>
 	  <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
 	  <DockerfileContext>.</DockerfileContext>
+  <ContainerImageTags>1.0.0;latest</ContainerImageTags>
+  <ContainerRepository>reportingservice</ContainerRepository>
+  <PublishProfile>DefaultContainer</PublishProfile>
   </PropertyGroup>
 
   <ItemGroup>
