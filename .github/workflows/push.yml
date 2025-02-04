@@ -1,0 +1,36 @@
+# A push that occurs on any branch other than main
+name: Push Branch
+
+on:
+  push:
+    branches:
+      - "**"
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
+jobs:
+  # Code Build To Do:  SonarQube 
+
+  BuilAndUnitTestApp:
+    env:
+      SOLUTION: 'ReportingService.sln'
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 9.0.x
+
+    - name: 🛠️ Clone Test Repository
+      run: |
+        git clone https://github.com/KaviRite/ReportingTests.git ReportingService.Test
+    - name: Restore dependencies
+      run: dotnet restore $SOLUTION
+    - name: Build
+      run: dotnet build $SOLUTION  --no-restore
+
