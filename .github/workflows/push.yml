@@ -17,7 +17,6 @@ jobs:
   BuilAndUnitTestApp:
     env:
       SOLUTION: 'ReportingService.sln'
-
     runs-on: ubuntu-latest
 
     steps:
@@ -26,6 +25,12 @@ jobs:
       uses: actions/setup-dotnet@v3
       with:
         dotnet-version: 9.0.x
+
+    - name: 🛠️ Clone Test Repository
+      run: |
+        git clone https://github.com/your-org-or-username/ReportingService.Test.git ReportingService.Test
+    - name: Restore dependencies
+      run: dotnet restore $SOLUTION
     - name: Build
-      run: dotnet build ./ReportingService/ReportingService.sln --no-restore --configuration Release
+      run: dotnet build $SOLUTION  --no-restore
 
