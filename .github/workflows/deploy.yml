@@ -40,11 +40,11 @@ jobs:
           docker tag reporting-service-api:latest ${{ secrets.REPOSITORY }}:$IMAGE_TAG
           docker tag reporting-service-api:latest ${{ secrets.REPOSITORY }}:latest
 
+      - name: ✅ Run Tests from External Repo
+        run: dotnet test ./ReportingTests/ReportingService.Tests.csproj --no-build --verbosity normal
+
       - name: Push Docker Image to ECR
         run: |
           IMAGE_TAG=$(git rev-parse --short HEAD)
           docker push ${{ secrets.REPOSITORY }}:$IMAGE_TAG
           docker push ${{ secrets.REPOSITORY }}:latest
-
-           - name: ✅ Run Tests from External Repo
-              run: dotnet test ./ReportingTests/ReportingService.Tests.csproj --no-build --verbosity normal
