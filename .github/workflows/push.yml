@@ -28,7 +28,7 @@ jobs:
 
     - name: 🛠️ Clone Test Repository
       run: |
-        git clone https://github.com/your-org-or-username/ReportingService.Test.git ReportingService.Test
+        git clone https://github.com/KaviRite/ReportingTests.git ReportingService.Test
     - name: Restore dependencies
       run: dotnet restore $SOLUTION
     - name: Build
