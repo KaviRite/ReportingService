@@ -26,7 +26,6 @@ jobs:
       uses: actions/setup-dotnet@v3
       with:
         dotnet-version: 9.0.x
-    - name: Restore dependencies
-      run: dotnet restore $SOLUTION
     - name: Build
-      run: dotnet build $SOLUTION  --no-restore
+      run: dotnet build ./ReportingService/ReportingService.sln --no-restore --configuration Release
+
