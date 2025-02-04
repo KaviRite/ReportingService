@@ -1,0 +1,3 @@
+[submodule "ReportingService.Test"]
+	path = ReportingService.Test
+	url = https://github.com/KaviRite/ReportingTests.git
