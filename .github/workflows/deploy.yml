@@ -52,5 +52,5 @@ jobs:
             docker pull ${{ secrets.REPOSITORY }}:latest
 
             # Run the Docker container
-            docker run -d -p 80:80 --name reporting-service-api ${{ secrets.REPOSITORY }}:latest
+            docker run -d -p 5294:5294 --name reporting-service-api ${{ secrets.REPOSITORY }}:latest
           EOF
