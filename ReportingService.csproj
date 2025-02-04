@@ -12,9 +12,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="ReportingService.Test\**" />
     <Compile Remove="wwwroot\js\**" />
+    <Content Remove="ReportingService.Test\**" />
     <Content Remove="wwwroot\js\**" />
+    <EmbeddedResource Remove="ReportingService.Test\**" />
     <EmbeddedResource Remove="wwwroot\js\**" />
+    <None Remove="ReportingService.Test\**" />
     <None Remove="wwwroot\js\**" />
   </ItemGroup>
 
