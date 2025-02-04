@@ -25,10 +25,8 @@ jobs:
       uses: actions/setup-dotnet@v3
       with:
         dotnet-version: 9.0.x
-
-    - name: 🛠️ Clone Test Repository
-      run: |
-        git clone https://github.com/KaviRite/ReportingTests.git ReportingService.Test
+        submodules: recursive
+        
     - name: Restore dependencies
       run: dotnet restore $SOLUTION
     - name: Build
