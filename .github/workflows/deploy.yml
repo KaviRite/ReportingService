@@ -36,14 +36,19 @@ jobs:
           docker push ${{ secrets.REPOSITORY }}:$IMAGE_TAG
           docker push ${{ secrets.REPOSITORY }}:latest
 
+      - name: Create SSH Key File
+        run: |
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/your-key.pem
+          chmod 600 ~/.ssh/your-key.pem
+
       - name: Deploy to EC2
         run: |
-          IMAGE_TAG=$(git rev-parse --short HEAD)
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/your-key.pem ec2-user@<your-ec2-public-ip> "
-            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }} &&
-            docker pull ${{ secrets.REPOSITORY }}:$IMAGE_TAG &&
             docker stop reporting-service-api || true &&
             docker rm reporting-service-api || true &&
-            docker run -d --name reporting-service-api -p 80:80 ${{ secrets.REPOSITORY }}:$IMAGE_TAG
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }} &&
+            docker pull ${{ secrets.REPOSITORY }}:latest &&
+            docker run -d -p 80:80 --name reporting-service-api ${{ secrets.REPOSITORY }}:latest
           "
+
 
