@@ -44,7 +44,7 @@ jobs:
 
       - name: Deploy to EC2
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/RportingKeyPair.pem ec2-user@50.19.164.61 "
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/RportingKeyPair.pem ec2-user@${{ secrets.EC2_PUBLIC_IP }} "
             sudo systemctl start docker &&
             sudo usermod -aG docker ec2-user &&
             docker stop reporting-service-api || true &&
