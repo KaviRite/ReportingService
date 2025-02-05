@@ -39,10 +39,11 @@ jobs:
       - name: Deploy to EC2
         run: |
           IMAGE_TAG=$(git rev-parse --short HEAD)
-          ssh -i ~/.ssh/your-key.pem ec2-user@<your-ec2-public-ip> << EOF
-            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }}
-            docker pull ${{ secrets.REPOSITORY }}:$IMAGE_TAG
-            docker stop reporting-service-api || true
-            docker rm reporting-service-api || true
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/your-key.pem ec2-user@<your-ec2-public-ip> "
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }} &&
+            docker pull ${{ secrets.REPOSITORY }}:$IMAGE_TAG &&
+            docker stop reporting-service-api || true &&
+            docker rm reporting-service-api || true &&
             docker run -d --name reporting-service-api -p 80:80 ${{ secrets.REPOSITORY }}:$IMAGE_TAG
-          EOF
+          "
+
