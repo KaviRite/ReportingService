@@ -31,4 +31,15 @@ jobs:
       run: dotnet restore $SOLUTION
     - name: Build
       run: dotnet build $SOLUTION  --no-restore
+    - name: Test
+      run: dotnet test $SOLUTION  --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" || true
+
+    - name: Test Report
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: Dot NET Tests
+        path: "**/test-results.trx"                            
+        reporter: dotnet-trx
+        fail-on-error: true
 
