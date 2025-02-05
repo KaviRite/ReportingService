@@ -38,12 +38,12 @@ jobs:
 
       - name: Create SSH Key File
         run: |
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/your-key.pem
-          chmod 600 ~/.ssh/your-key.pem
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/RportingKeyPair.pem
+          chmod 600 ~/.ssh/RportingKeyPair.pem
 
       - name: Deploy to EC2
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/your-key.pem ec2-user@<your-ec2-public-ip> "
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/RportingKeyPair.pem ec2-user@<your-ec2-public-ip> "
             docker stop reporting-service-api || true &&
             docker rm reporting-service-api || true &&
             aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }} &&
