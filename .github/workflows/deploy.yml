@@ -1,9 +1,9 @@
-name: Deploy to AWS EC2
+name: Deploy to EC2 🚀
 
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
   build-and-deploy:
@@ -11,46 +11,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 🛠 Checkout Repository
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: ⚙️ Set up AWS CLI
+      - name: Set up AWS CLI
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: 🔐 Login to Amazon ECR
+      - name: Login to Amazon ECR
         run: |
           aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }}
 
-      - name: 🏗 Build Docker Image
+      - name: Build Docker Image
         run: docker build -t reporting-service-api .
 
-      - name: 🏷 Tag Docker Image
+      - name: Tag and Push Docker Image
         run: |
           IMAGE_TAG=$(git rev-parse --short HEAD)
           docker tag reporting-service-api:latest ${{ secrets.REPOSITORY }}:$IMAGE_TAG
           docker tag reporting-service-api:latest ${{ secrets.REPOSITORY }}:latest
-
-      - name: 📤 Push Docker Image to ECR
-        run: |
-          IMAGE_TAG=$(git rev-parse --short HEAD)
           docker push ${{ secrets.REPOSITORY }}:$IMAGE_TAG
           docker push ${{ secrets.REPOSITORY }}:latest
 
-      - name: 🚀 Deploy to EC2
+      - name: Deploy to EC2
         run: |
           IMAGE_TAG=$(git rev-parse --short HEAD)
-          ssh -o StrictHostKeyChecking=no -i "${{ secrets.EC2_SSH_KEY }}" ec2-user@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
-            # Stop the existing container (if running)
+          ssh -i ~/.ssh/your-key.pem ec2-user@<your-ec2-public-ip> << EOF
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }}
+            docker pull ${{ secrets.REPOSITORY }}:$IMAGE_TAG
             docker stop reporting-service-api || true
             docker rm reporting-service-api || true
-
-            # Pull the latest image from ECR
-            docker pull ${{ secrets.REPOSITORY }}:latest
-
-            # Run the Docker container
-            docker run -d -p 5294:5294 --name reporting-service-api ${{ secrets.REPOSITORY }}:latest
+            docker run -d --name reporting-service-api -p 80:80 ${{ secrets.REPOSITORY }}:$IMAGE_TAG
           EOF
