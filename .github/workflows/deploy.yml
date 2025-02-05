@@ -44,7 +44,7 @@ jobs:
 
       - name: Deploy to EC2
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/RportingKeyPair.pem ec2-user@<your-ec2-public-ip> "
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/RportingKeyPair.pem ec2-user@50.19.164.61 "
             docker stop reporting-service-api || true &&
             docker rm reporting-service-api || true &&
             aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }} &&
