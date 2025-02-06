@@ -2,6 +2,8 @@ name: Containerize
 
 on:
   push:
+    branches:
+      - "**"
     tags:
       - "v*-dev"
       - "v*-qa"
