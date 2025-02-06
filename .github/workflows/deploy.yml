@@ -25,12 +25,13 @@ jobs:
         run: |
           aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }}
 
-      - name: Build Docker Image
-        run: docker build -t reporting-service-api .
-
-      - name: Tag and Push Docker Image
+      - name: Build & Push Docker Image
         run: |
+          
           IMAGE_TAG=$(git rev-parse --short HEAD)
+          
+          cd ReportingService
+          docker build -t reporting-service-api .
           docker tag reporting-service-api:latest ${{ secrets.REPOSITORY }}:$IMAGE_TAG
           docker tag reporting-service-api:latest ${{ secrets.REPOSITORY }}:latest
           docker push ${{ secrets.REPOSITORY }}:$IMAGE_TAG
