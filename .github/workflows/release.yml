@@ -109,7 +109,7 @@ jobs:
           echo "version only tag $VERSION_ONLY"
           
           docker build -t $REGISTRY/reporting_api:${{ needs.tagify.outputs.the_tag }} -t $DEV_TAG  .
-          docker push $REGISTRY/reporting_api:${{ needs.tagify.outputs.the_tag }}
+          docker push ${{ secrets.REPOSITORY }}:${{ needs.tagify.outputs.the_tag }}
 
      - name: Cleanup
        run: |
