@@ -152,7 +152,7 @@ jobs:
           ENVIRONMENT=${parsed_tag[1]}
           IFS=' '
           QA_BASE=$VERSION_ONLY-qa
-          FULL_TAG=$REGISTRY/reporting-api:$QA_BASE
+          FULL_TAG=$REGISTRY/reporting_api:$QA_BASE
           NEW_TAG=$REGISTRY/reporting_api:${{ env.TAG_VERSION }}
           LATEST_TAG=$REGISTRY/reporting_api:latest
 
