@@ -1,10 +1,6 @@
 name: Deploy
 
 on:
-  workflow_run:
-    workflows: ["Containerize"]
-    types:
-      - completed
   push:
     tags:
       - "v*-dev-deploy"
