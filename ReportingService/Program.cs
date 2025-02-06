@@ -13,7 +13,7 @@ var nLogger = NLogBuilder.ConfigureNLog("nlog.config").GetCurrentClassLogger();
 
 try
 {
-    nLogger.Debug("Initializing Application...");
+    nLogger.Debug("Initializing Application..");
     var builder = WebApplication.CreateBuilder(args);
 
     builder.WebHost.ConfigureKestrel(serverOptions =>
