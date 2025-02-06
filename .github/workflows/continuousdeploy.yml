@@ -1,0 +1,336 @@
+name: Deploy
+
+on:
+  push:
+    tags:
+      - "v*-dev-deploy"
+      - "v*-qa-deploy"
+      - "v*-stage-deploy"
+      - "v*-prod-deploy"
+  workflow_dispatch:
+    inputs:
+      deploy_version:
+        type: string
+        description: Version to deploy in format vX.Y.Z
+      deploy_environment:
+        type: choice
+        description: Deploy Environment
+        options:
+          - dev
+          - qa
+          - stage
+          - prod
+jobs:
+
+  tagify:
+    name: Get Tag
+    runs-on: ubuntu-latest
+    outputs:
+      the_tag: ${{ steps.deploy_tag.outputs.TAG_NAME }}
+    steps:
+      - name: Event Type
+        run: |
+          echo Processing Event: ${{ github.event_name }}
+      - name: Get Deploy Tag
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          echo GHR ${GITHUB_REF}
+          echo GHR_eval ${GITHUB_REF#refs/*/}
+          full_tag=${GITHUB_REF#refs/*/}
+          deploy_tag=${full_tag: 0:-7}
+          echo "VERSION=${deploy_tag}" >> "$GITHUB_ENV" 
+      - name: Manual Input
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          echo Manual Run
+          echo ${{ github.event.inputs.deploy_version }}
+          echo "VERSION=${{ github.event.inputs.deploy_version }}-${{ github.event.inputs.deploy_environment }}" >> "$GITHUB_ENV" 
+      - name: Output VAR
+        id: deploy_tag
+        run: |
+          echo Variable Is
+          echo ${{ env.VERSION }}
+          echo "TAG_NAME=${{ env.VERSION }}" >> $GITHUB_OUTPUT
+
+  investigate:
+    runs-on: ubuntu-latest
+    needs: tagify
+    steps:
+      - name: Dump context
+        uses: crazy-max/ghaction-dump-context@v2
+
+  retag_image_stage:
+    needs: [tagify]
+    runs-on: ubuntu-latest
+    if: ${{ endsWith(needs.tagify.outputs.the_tag, 'stage') }}
+    env:
+      TAG_VERSION: ${{needs.tagify.outputs.the_tag}}
+
+    steps:
+        - uses: actions/checkout@v3
+        - name: Configure AWS credentials
+          uses: aws-actions/configure-aws-credentials@v4
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ secrets.AWS_REGION }}
+  
+        - name: Login to Amazon ECR
+          id: login-ecr
+          uses: aws-actions/amazon-ecr-login@v2
+          with:
+             mask-password: 'false'
+  
+        - name: Retag Container and push docker image to Amazon ECR
+          env:
+             REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+             REPOSITORY: ${{ secrets.REPOSITORY }}
+
+          run: |  
+  
+            # Prepare Vars
+            IFS='-'
+            read -a parsed_tag <<< "${{ env.TAG_VERSION }}"
+            VERSION_ONLY=${parsed_tag[0]}
+            ENVIRONMENT=${parsed_tag[1]}
+            IFS=' '
+            QA_BASE=$VERSION_ONLY-qa
+            FULL_TAG=$REGISTRY/reporting_api:$QA_BASE
+            NEW_TAG=$REGISTRY/reporting_api:${{ env.TAG_VERSION }}
+            LATEST_TAG=$REGISTRY/reporting_api:latest
+  
+            # Debug
+            echo Full_Tag $FULL_TAG
+            echo New_Tag $NEW_TAG
+            echo Latest_Tag $LATEST_TAG
+  
+            # Push Environment Tag
+            docker pull $FULL_TAG
+            docker tag $FULL_TAG $NEW_TAG
+            docker push $NEW_TAG
+  
+            # If Prod Push Latest
+            case $ENVIRONMENT in
+              prod)
+                docker tag $FULL_TAG $LATEST_TAG
+                docker push $LATEST_TAG
+                ;;
+            esac
+
+    # Duplication because github - deploy requires s
+  retag_image_prod:
+    needs: [tagify]
+    runs-on: ubuntu-latest
+    if: ${{ endsWith(needs.tagify.outputs.the_tag, 'prod') }}
+    env:
+      TAG_VERSION: ${{needs.tagify.outputs.the_tag}}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+           mask-password: 'false'
+
+      - name: Retag Container and push docker image to Amazon ECR
+        env:
+           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+           REPOSITORY: ${{ secrets.REPOSITORY }}
+
+        run: | 
+          # Prepare Vars
+          IFS='-'
+          read -a parsed_tag <<< "${{ env.TAG_VERSION }}"
+          VERSION_ONLY=${parsed_tag[0]}
+          ENVIRONMENT=${parsed_tag[1]}
+          IFS=' '
+          QA_BASE=$VERSION_ONLY-qa
+          FULL_TAG=$REGISTRY/reporting-api:$QA_BASE
+          NEW_TAG=$REGISTRY/reporting_api:${{ env.TAG_VERSION }}
+          LATEST_TAG=$REGISTRY/reporting_api:latest
+
+          # Debug
+          echo Full_Tag $FULL_TAG
+          echo New_Tag $NEW_TAG
+          echo Latest_Tag $LATEST_TAG
+
+          # Push Environment Tag
+          docker pull $FULL_TAG
+          docker tag $FULL_TAG $NEW_TAG
+          docker push $NEW_TAG
+
+          # If Prod Push Latest
+          case $ENVIRONMENT in
+            prod)
+              docker tag $FULL_TAG $LATEST_TAG
+              docker push $LATEST_TAG
+              ;;
+          esac
+
+
+  deploy_qa:
+    needs: [tagify]
+    runs-on: ubuntu-latest
+    if: ${{ endsWith(needs.tagify.outputs.the_tag, 'qa') }}
+    env:
+      TAG_VERSION: ${{needs.tagify.outputs.the_tag}}
+    steps:
+    
+    - name: Checkout code
+      uses: actions/checkout@v3
+    - name: Set permissions for private key
+      run: |
+        echo "${{ secrets.EC2_SSH_KEY }}" > key.pem
+        chmod 600 key.pem
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+      with:
+          mask-password: 'false'
+
+    - name: Pull Docker image from AWS ECR
+      env:
+         REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+         REGISTRY_PASS: ${{ steps.login-ecr.outputs.password }}
+         AWS_REGION: ${{ secrets.AWS_REGION }}
+
+      run: |
+        echo "version value ${{ env.TAG_VERSION }}"
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'aws ecr get-login-password --region ${{ env.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ env.REGISTRY }} && sudo docker pull ${{ env.REGISTRY }}/reporting_api:${{ env.TAG_VERSION }}'
+        #ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker login -u AWS -p ${{ env.REGISTRY_PASS }} ${{ env.REGISTRY }}'
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker pull ${{ env.REGISTRY }}/reporting_api:${{ env.TAG_VERSION }}'
+
+    - name: Stop running container
+      run: |
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker stop reporting_api_QA || true'
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker rm reporting_api_QA  || true'
+
+    - name: Run new container
+      run: |
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker run -d --name reporting_api_QA -p 8055:80 ${{ env.REGISTRY }}/reporting_api:${{ env.TAG_VERSION }}'
+
+    - name: Cleanup
+      run: |
+
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker logout'
+  
+  deploy_stage:
+    runs-on: ubuntu-latest
+    needs: [tagify,retag_image_stage]
+    if: ${{ endsWith(needs.tagify.outputs.the_tag, 'stage') }}
+    env:
+      TAG_VERSION: ${{needs.tagify.outputs.the_tag}}
+    steps:
+    
+    - name: Checkout code
+      uses: actions/checkout@v3
+    - name: Set permissions for private key
+      run: |
+        echo "${{ secrets.EC2_SSH_KEY }}" > key.pem
+        chmod 600 key.pem
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+      with:
+         mask-password: 'false'
+
+    - name: Pull Docker image from AWS ECR
+      env:
+         REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+
+      run: |
+        echo "version value ${{ env.TAG_VERSION }}"
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker pull ${{ env.REGISTRY }}/reporting_api:${{ env.TAG_VERSION }}'
+
+    - name: Stop running container
+      run: |
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker stop reporting_api_Stage || true'
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker rm reporting_api_Stage  || true'
+
+    - name: Run new container
+      run: |
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker run -d --name reporting_api_Stage -p 8056:80 ${{ env.REGISTRY }}/reporting_api:${{ env.TAG_VERSION }}'
+
+    - name: Cleanup
+      run: |
+
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker logout'
+
+  
+  deploy_prod:
+    needs: [tagify,retag_image_prod]
+    runs-on: ubuntu-latest
+    if: ${{ endsWith(needs.tagify.outputs.the_tag, 'prod') }}
+    env:
+      TAG_VERSION: ${{needs.tagify.outputs.the_tag}}
+    steps:
+    
+    - name: Checkout code
+      uses: actions/checkout@v3
+    - name: Set permissions for private key
+      run: |
+        echo "${{ secrets.EC2_SSH_KEY }}" > key.pem
+        chmod 600 key.pem
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+      with:
+         mask-password: 'false'
+          
+    - name: Pull Docker image from AWS ECR
+      env:
+         REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+         REGISTRY_PASS: ${{ steps.login-ecr.outputs.password }}
+         AWS_REGION: ${{ secrets.AWS_REGION }}
+
+      run: |
+        echo "version value ${{ env.TAG_VERSION }}"
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'aws ecr get-login-password --region ${{ env.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ env.REGISTRY }} && sudo docker pull ${{ env.REGISTRY }}/reporting_api:${{ env.TAG_VERSION }}'
+        #ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker login -u AWS -p ${{ env.REGISTRY_PASS }} ${{ env.REGISTRY }}'
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker pull ${{ env.REGISTRY }}/reporting_api:${{ env.TAG_VERSION }}'
+
+    - name: Stop running container
+      run: |
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker stop reporting_api_Production || true'
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker rm reporting_api_Production  || true'
+
+    - name: Run new container
+      run: |
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker run -d --name reporting_api_Production -p 8057:80 ${{ env.REGISTRY }}/reporting_api:latest'
+
+    - name: Cleanup
+      run: |
+
+
+
