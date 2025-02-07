@@ -94,7 +94,7 @@ jobs:
           ENVIRONMENT=${parsed_tag[1]}
           IFS=' '
           DEV_BASE=$VERSION_ONLY-dev
-          DEV_TAG=$REGISTRY/reporting_api:$DEV_BASE
+          DEV_TAG=${{ secrets.REPOSITORY }}/reporting_api:$DEV_BASE
           
           echo "original tag ${{ needs.tagify.outputs.the_tag }}"
           echo "version only tag $VERSION_ONLY"
