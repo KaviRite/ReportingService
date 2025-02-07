@@ -205,7 +205,7 @@ jobs:
     - name: Cleanup
       run: |
 
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker logout'
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/RportingKeyPair.pem ec2-user@${{ secrets.EC2_PUBLIC_IP }} 'sudo docker logout'
   
   deploy_stage:
     runs-on: ubuntu-latest
@@ -254,7 +254,7 @@ jobs:
     - name: Cleanup
       run: |
 
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker logout'
+         ssh -o StrictHostKeyChecking=no -i ~/.ssh/RportingKeyPair.pem ec2-user@${{ secrets.EC2_PUBLIC_IP }} 'sudo docker logout'
   
   
   deploy_prod:
@@ -303,6 +303,6 @@ jobs:
           "
     - name: Cleanup
       run: |
-
+           ssh -o StrictHostKeyChecking=no -i ~/.ssh/RportingKeyPair.pem ec2-user@${{ secrets.EC2_PUBLIC_IP }} 'sudo docker logout'
 
 
