@@ -76,17 +76,8 @@ jobs:
             aws-region: ${{ secrets.AWS_REGION }}
   
         - name: Login to Amazon ECR
-          id: login-ecr
-          uses: aws-actions/amazon-ecr-login@v2
-          with:
-             mask-password: 'false'
-  
-        - name: Retag Container and push docker image to Amazon ECR
-          env:
-             REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-             REPOSITORY: ${{ secrets.REPOSITORY }}
-
-          run: |  
+          run: |
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }}
   
             # Prepare Vars
             IFS='-'
@@ -95,9 +86,9 @@ jobs:
             ENVIRONMENT=${parsed_tag[1]}
             IFS=' '
             QA_BASE=$VERSION_ONLY-qa
-            FULL_TAG=$REGISTRY/reporting_api:$QA_BASE
-            NEW_TAG=$REGISTRY/reporting_api:${{ env.TAG_VERSION }}
-            LATEST_TAG=$REGISTRY/reporting_api:latest
+            FULL_TAG=${{ secrets.REPOSITORY }}:$QA_BASE
+            NEW_TAG=${{ secrets.REPOSITORY }}:${{ env.TAG_VERSION }}
+            LATEST_TAG=${{ secrets.REPOSITORY }}:latest
   
             # Debug
             echo Full_Tag $FULL_TAG
@@ -134,17 +125,9 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-        with:
-           mask-password: 'false'
+        run: |
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }}
 
-      - name: Retag Container and push docker image to Amazon ECR
-        env:
-           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-           REPOSITORY: ${{ secrets.REPOSITORY }}
-
-        run: | 
           # Prepare Vars
           IFS='-'
           read -a parsed_tag <<< "${{ env.TAG_VERSION }}"
@@ -152,9 +135,9 @@ jobs:
           ENVIRONMENT=${parsed_tag[1]}
           IFS=' '
           QA_BASE=$VERSION_ONLY-qa
-          FULL_TAG=$REGISTRY/reporting_api:$QA_BASE
-          NEW_TAG=$REGISTRY/reporting_api:${{ env.TAG_VERSION }}
-          LATEST_TAG=$REGISTRY/reporting_api:latest
+          FULL_TAG=${{ secrets.REPOSITORY }}:$QA_BASE
+          NEW_TAG=${{ secrets.REPOSITORY }}:${{ env.TAG_VERSION }}
+          LATEST_TAG=${{ secrets.REPOSITORY }}:latest
 
           # Debug
           echo Full_Tag $FULL_TAG
@@ -198,32 +181,27 @@ jobs:
         aws-region: ${{ secrets.AWS_REGION }}
 
     - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
-      with:
-          mask-password: 'false'
-
-    - name: Pull Docker image from AWS ECR
-      env:
-         REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-         REGISTRY_PASS: ${{ steps.login-ecr.outputs.password }}
-         AWS_REGION: ${{ secrets.AWS_REGION }}
-
       run: |
-        echo "version value ${{ env.TAG_VERSION }}"
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'aws ecr get-login-password --region ${{ env.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ env.REGISTRY }} && sudo docker pull ${{ env.REGISTRY }}/reporting_api:${{ env.TAG_VERSION }}'
-        #ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker login -u AWS -p ${{ env.REGISTRY_PASS }} ${{ env.REGISTRY }}'
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker pull ${{ env.REGISTRY }}/reporting_api:${{ env.TAG_VERSION }}'
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }}
 
-    - name: Stop running container
+    - name: Create SSH Key File
       run: |
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker stop reporting_api_QA || true'
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker rm reporting_api_QA  || true'
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/RportingKeyPair.pem
+          chmod 600 ~/.ssh/RportingKeyPair.pem
 
-    - name: Run new container
+    - name: Deploy to EC2
       run: |
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker run -d --name reporting_api_QA -p 8055:80 ${{ env.REGISTRY }}/reporting_api:${{ env.TAG_VERSION }}'
-
+          echo "version value ${{ env.TAG_VERSION }}"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/RportingKeyPair.pem ec2-user@${{ secrets.EC2_PUBLIC_IP }} "
+            sudo systemctl start docker &&
+            sudo usermod -aG docker ec2-user &&
+            docker stop reporting-service-api || true &&
+            docker rm reporting-service-api || true &&
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }} &&
+            docker pull ${{ secrets.REPOSITORY }}:${{ env.TAG_VERSION }} &&
+            docker run -d -p 80:80 --name reporting-service-api ${{ secrets.REPOSITORY }}:${{ env.TAG_VERSION }}
+          "
     - name: Cleanup
       run: |
 
@@ -252,33 +230,32 @@ jobs:
         aws-region: ${{ secrets.AWS_REGION }}
 
     - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
-      with:
-         mask-password: 'false'
-
-    - name: Pull Docker image from AWS ECR
-      env:
-         REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-
       run: |
-        echo "version value ${{ env.TAG_VERSION }}"
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker pull ${{ env.REGISTRY }}/reporting_api:${{ env.TAG_VERSION }}'
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }}
 
-    - name: Stop running container
+    - name: Create SSH Key File
       run: |
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker stop reporting_api_Stage || true'
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker rm reporting_api_Stage  || true'
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/RportingKeyPair.pem
+          chmod 600 ~/.ssh/RportingKeyPair.pem
 
-    - name: Run new container
+    - name: Deploy to EC2
       run: |
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker run -d --name reporting_api_Stage -p 8056:80 ${{ env.REGISTRY }}/reporting_api:${{ env.TAG_VERSION }}'
-
+          echo "version value ${{ env.TAG_VERSION }}"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/RportingKeyPair.pem ec2-user@${{ secrets.EC2_PUBLIC_IP }} "
+            sudo systemctl start docker &&
+            sudo usermod -aG docker ec2-user &&
+            docker stop reporting-service-api || true &&
+            docker rm reporting-service-api || true &&
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }} &&
+            docker pull ${{ secrets.REPOSITORY }}:${{ env.TAG_VERSION }} &&
+            docker run -d -p 80:80 --name reporting-service-api ${{ secrets.REPOSITORY }}:${{ env.TAG_VERSION }}
+          "
     - name: Cleanup
       run: |
 
         ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker logout'
-
+  
   
   deploy_prod:
     needs: [tagify,retag_image_prod]
@@ -303,32 +280,27 @@ jobs:
         aws-region: ${{ secrets.AWS_REGION }}
 
     - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
-      with:
-         mask-password: 'false'
-          
-    - name: Pull Docker image from AWS ECR
-      env:
-         REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-         REGISTRY_PASS: ${{ steps.login-ecr.outputs.password }}
-         AWS_REGION: ${{ secrets.AWS_REGION }}
-
       run: |
-        echo "version value ${{ env.TAG_VERSION }}"
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'aws ecr get-login-password --region ${{ env.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ env.REGISTRY }} && sudo docker pull ${{ env.REGISTRY }}/reporting_api:${{ env.TAG_VERSION }}'
-        #ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker login -u AWS -p ${{ env.REGISTRY_PASS }} ${{ env.REGISTRY }}'
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker pull ${{ env.REGISTRY }}/reporting_api:${{ env.TAG_VERSION }}'
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }}
 
-    - name: Stop running container
+    - name: Create SSH Key File
       run: |
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker stop reporting_api_Production || true'
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker rm reporting_api_Production  || true'
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/RportingKeyPair.pem
+          chmod 600 ~/.ssh/RportingKeyPair.pem
 
-    - name: Run new container
+    - name: Deploy to EC2
       run: |
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_IP_ADDRESS }} 'sudo docker run -d --name reporting_api_Production -p 8057:80 ${{ env.REGISTRY }}/reporting_api:latest'
-
+          echo "version value ${{ env.TAG_VERSION }}"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/RportingKeyPair.pem ec2-user@${{ secrets.EC2_PUBLIC_IP }} "
+            sudo systemctl start docker &&
+            sudo usermod -aG docker ec2-user &&
+            docker stop reporting-service-api || true &&
+            docker rm reporting-service-api || true &&
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.REPOSITORY }} &&
+            docker pull ${{ secrets.REPOSITORY }}:${{ env.TAG_VERSION }} &&
+            docker run -d -p 80:80 --name reporting-service-api ${{ secrets.REPOSITORY }}:${{ env.TAG_VERSION }}
+          "
     - name: Cleanup
       run: |
 
